@@ -335,21 +335,7 @@ def _add_subtract_common(operation_function, operation_name, cube, other,
     _assert_is_cube(cube)
     _assert_matching_units(cube, other, operation_name)
 
-    if isinstance(other, iris.cube.Cube):
-        # get a coordinate comparison of this cube and the cube to do the
-        # operation with
-        coord_comp = iris.analysis.coord_comparison(cube, other)
-
-        bad_coord_grps = (coord_comp['ungroupable_and_dimensioned'] +
-                          coord_comp['resamplable'])
-        if bad_coord_grps:
-            raise ValueError('This operation cannot be performed as there are '
-                             'differing coordinates (%s) remaining '
-                             'which cannot be ignored.'
-                             % ', '.join({coord_grp.name() for coord_grp
-                                          in bad_coord_grps}))
-    else:
-        coord_comp = None
+    coord_comp = _math_op_coord_comp(cube, other)
 
     new_cube = _binary_op_common(operation_function, operation_name, cube,
                                  other, cube.units, new_dtype=new_dtype,
@@ -398,20 +384,7 @@ def multiply(cube, other, dim=None, in_place=False):
     else:
         op = operator.mul
 
-    if isinstance(other, iris.cube.Cube):
-        # get a coordinate comparison of this cube and the cube to do the
-        # operation with
-        coord_comp = iris.analysis.coord_comparison(cube, other)
-        bad_coord_grps = (coord_comp['ungroupable_and_dimensioned'] +
-                          coord_comp['resamplable'])
-        if bad_coord_grps:
-            raise ValueError('This operation cannot be performed as there are '
-                             'differing coordinates (%s) remaining '
-                             'which cannot be ignored.'
-                             % ', '.join({coord_grp.name() for coord_grp
-                                          in bad_coord_grps}))
-    else:
-        coord_comp = None
+    coord_comp = _math_op_coord_comp(cube, other)
 
     new_cube = _binary_op_common(op, 'multiply', cube, other, new_unit,
                                  new_dtype=new_dtype, dim=dim,
@@ -480,20 +453,7 @@ def divide(cube, other, dim=None, in_place=False):
     else:
         op = operator.truediv
 
-    if isinstance(other, iris.cube.Cube):
-        # get a coordinate comparison of this cube and the cube to do the
-        # operation with
-        coord_comp = iris.analysis.coord_comparison(cube, other)
-        bad_coord_grps = (coord_comp['ungroupable_and_dimensioned'] +
-                          coord_comp['resamplable'])
-        if bad_coord_grps:
-            raise ValueError('This operation cannot be performed as there are '
-                             'differing coordinates (%s) remaining '
-                             'which cannot be ignored.'
-                             % ', '.join({coord_grp.name() for coord_grp
-                                          in bad_coord_grps}))
-    else:
-        coord_comp = None
+    coord_comp = _math_op_coord_comp(cube, other)
 
     new_cube = _binary_op_common(op, 'divide', cube, other, new_unit,
                                  new_dtype=new_dtype, dim=dim,
@@ -1025,3 +985,23 @@ class IFunc(object):
             new_cube.rename(new_name)
 
         return new_cube
+
+
+def _math_op_coord_comp(cube, other):
+    if isinstance(other, iris.cube.Cube):
+        # get a coordinate comparison of this cube and the cube to do the
+        # operation with
+        coord_comp = iris.analysis.coord_comparison(cube, other)
+
+        bad_coord_grps = (coord_comp['ungroupable_and_dimensioned'] +
+                          coord_comp['resamplable'])
+        if bad_coord_grps:
+            raise ValueError('This operation cannot be performed as there are '
+                             'differing coordinates (%s) remaining '
+                             'which cannot be ignored.'
+                             % ', '.join({coord_grp.name() for coord_grp
+                                          in bad_coord_grps}))
+    else:
+        coord_comp = None
+
+    return coord_comp
