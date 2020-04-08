@@ -478,7 +478,10 @@ def exponentiate(cube, exponent, in_place=False):
     * cube:
         An instance of :class:`iris.cube.Cube`.
     * exponent:
-        The integer or floating point exponent.
+        The integer, floating point or :class:`iris.cube.Cube` exponent.
+
+        .. note:: If a :class:`iris.cube.Cube` is used as the exponent it must be a
+            scalar cube with no dimensions or coordinates
 
         .. note:: When applied to the cube's unit, the exponent must
             result in a unit that can be described using only integer
@@ -495,6 +498,14 @@ def exponentiate(cube, exponent, in_place=False):
         An instance of :class:`iris.cube.Cube`.
 
     """
+    if type(exponent) is iris.cube.Cube:
+        if exponent.units == 1 and exponent.shape == () \
+                and exponent.coords() == []:
+            exponent = exponent.data
+        else:
+            raise iris.exceptions.InvalidCubeError('Only nondimensional scalar cubes '
+                                                   'can be used as an exponent')
+
     _assert_is_cube(cube)
     new_dtype = _output_dtype(operator.pow, cube.dtype, _get_dtype(exponent),
                               in_place=in_place)
@@ -505,8 +516,17 @@ def exponentiate(cube, exponent, in_place=False):
         def power(data, out=None):
             return np.power(data, exponent, out)
 
-    return _math_op_common(cube, power, cube.units ** exponent, new_dtype,
-                           in_place=in_place)
+    # CF-units currently does not allow raising a unit by a decimal exponent; however,
+    # this should be allowed if the input cube is dimensionless
+    try:
+        units = cube.units ** exponent
+    except ValueError as err:
+        if cube.units == 1:
+            units = cube.units
+        else:
+            raise err
+
+    return _math_op_common(cube, power, units, new_dtype, in_place=in_place)
 
 
 def exp(cube, in_place=False):
@@ -989,18 +1009,23 @@ class IFunc(object):
 
 def _math_op_coord_comp(cube, other):
     if isinstance(other, iris.cube.Cube):
-        # get a coordinate comparison of this cube and the cube to do the
-        # operation with
-        coord_comp = iris.analysis.coord_comparison(cube, other)
+        # skip coord_comparison if either cube is a scalar with no coordinates
+        if (cube.shape == () and cube.coords() == []) or \
+                (other.shape == () and other.coords() == []):
+            coord_comp = None
+        else:
+            # get a coordinate comparison of this cube and the cube to do the
+            # operation with
+            coord_comp = iris.analysis.coord_comparison(cube, other)
 
-        bad_coord_grps = (coord_comp['ungroupable_and_dimensioned'] +
-                          coord_comp['resamplable'])
-        if bad_coord_grps:
-            raise ValueError('This operation cannot be performed as there are '
-                             'differing coordinates (%s) remaining '
-                             'which cannot be ignored.'
-                             % ', '.join({coord_grp.name() for coord_grp
-                                          in bad_coord_grps}))
+            bad_coord_grps = (coord_comp['ungroupable_and_dimensioned'] +
+                              coord_comp['resamplable'])
+            if bad_coord_grps:
+                raise ValueError('This operation cannot be performed as there are '
+                                 'differing coordinates (%s) remaining '
+                                 'which cannot be ignored.'
+                                 % ', '.join({coord_grp.name() for coord_grp
+                                              in bad_coord_grps}))
     else:
         coord_comp = None
 
